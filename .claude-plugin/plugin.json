@@ -1,0 +1,9 @@
+{
+  "name": "statusline-info",
+  "description": "Show context window usage, token count, and 5h/7d rate limit usage in the status bar",
+  "author": {
+    "name": "Local",
+    "email": ""
+  },
+  "version": "1.0.0"
+}
