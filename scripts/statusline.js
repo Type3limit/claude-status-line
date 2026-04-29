@@ -8,24 +8,28 @@ stdin.on('data', (chunk) => { input += chunk; });
 stdin.on('end', () => {
   try {
     const d = JSON.parse(input);
-    const parts = [];
+    // Line 1 splits into two Powerline panels:
+    //   ctxParts  — "context & limits" on a deep teal-blue panel
+    //   sessParts — "this session"     on a deep purple panel
+    const ctxParts = [];
+    const sessParts = [];
 
     // Context window with colored bar, percentage, and total window size
     const ctx = d.context_window || {};
     if (ctx.used_percentage !== undefined) {
       const bar = progressBar(ctx.used_percentage);
       const pct = ctx.used_percentage.toFixed(1);
-      let seg = 'ctx ' + bar + ' ' + pct + '%';
+      let seg = '\u{1F4CA} ' + bar + ' ' + pct + '%';
       if (ctx.context_window_size) {
         seg += ' / ' + formatTokens(ctx.context_window_size);
       }
-      parts.push(seg);
+      ctxParts.push(seg);
     }
 
     // Token totals (session aggregate)
     if (ctx.total_input_tokens !== undefined) {
       const total = (ctx.total_input_tokens || 0) + (ctx.total_output_tokens || 0);
-      parts.push(formatTokens(total));
+      ctxParts.push('\u{1F9EE} ' + formatTokens(total));
     }
 
     // Rate limits (only present on official Anthropic API).
@@ -34,11 +38,11 @@ stdin.on('end', () => {
     const rl = d.rate_limits || {};
     const fiveHourPct = rl.five_hour && rl.five_hour.used_percentage;
     if (typeof fiveHourPct === 'number') {
-      parts.push(' ' + colorPct(fiveHourPct) + fiveHourPct.toFixed(0) + '%\x1b[39m');
+      ctxParts.push('\u{1F550} ' + colorPct(fiveHourPct) + fiveHourPct.toFixed(0) + '%\x1b[39m');
     }
     const sevenDayPct = rl.seven_day && rl.seven_day.used_percentage;
     if (typeof sevenDayPct === 'number') {
-      parts.push(' ' + colorPct(sevenDayPct) + sevenDayPct.toFixed(0) + '%\x1b[39m');
+      ctxParts.push('\u{1F4C5} ' + colorPct(sevenDayPct) + sevenDayPct.toFixed(0) + '%\x1b[39m');
     }
 
     // Model name (handle both string and object forms)
@@ -49,27 +53,31 @@ stdin.on('end', () => {
         .replace(/^claude-/, '')
         .replace(/-\d{8}$/, '')
         .replace(/@.*$/, '');
-      parts.push(short);
+      sessParts.push('\u{1F916} ' + short);
     }
 
     // Cost
     if (d.cost && d.cost.total_cost_usd !== undefined) {
-      parts.push('$' + d.cost.total_cost_usd.toFixed(2));
+      sessParts.push('\u{1F4B5} $' + d.cost.total_cost_usd.toFixed(2));
     }
 
-    // Thinking indicator (microchip glyph)
+    // Thinking indicator (brain emoji, magenta)
     if (d.thinking && d.thinking.enabled) {
-      parts.push('\x1b[35m think\x1b[39m');
+      sessParts.push('\x1b[35m\u{1F9E0} think\x1b[39m');
     }
 
-    // Effort level (bolt glyph)
+    // Effort level (high-voltage emoji)
     if (d.effort && d.effort.level) {
-      parts.push('\x1b[33m\x1b[39m ' + d.effort.level);
+      sessParts.push('⚡ ' + d.effort.level);
     }
 
-    const line1 = renderLine1(parts);
+    const line1 = renderLine1([
+      { bg: 24, fg: 252, dim: 110, parts: ctxParts },   // deep teal-blue
+      { bg: 54, fg: 252, dim: 141, parts: sessParts },  // deep purple
+    ]);
     const line2 = renderLine2(d.cwd);
-    stdout.write(line2 ? line1 + '\n' + line2 : line1);
+    const out = [line1, line2].filter(Boolean).join('\n');
+    stdout.write(out);
   } catch (e) {
     stdout.write('statusline: ' + e.message);
   }
@@ -112,16 +120,12 @@ function pathSegments(cwd) {
 }
 
 // Powerline glyphs (require a Nerd Font / Powerline-patched font to render):
-//    right-pointing solid arrow (segment transition)
-//    right-pointing thin chevron (intra-segment separator)
-//    branch icon
+//   U+E0B0  right-pointing solid arrow (segment transition)
+//   U+E0B1  right-pointing thin chevron (intra-segment separator)
+//   U+E0A0  branch icon
 const PWL_ARROW = '';
 const PWL_CHEVRON = '';
 const PWL_BRANCH = '';
-
-function pwlSeg(bg, fg, text) {
-  return { bg, text: '\x1b[48;5;' + bg + 'm\x1b[38;5;' + fg + 'm ' + text + ' ' };
-}
 
 function pwlJoin(segments) {
   let out = '';
@@ -137,29 +141,42 @@ function pwlJoin(segments) {
   return out;
 }
 
+function renderPanel(bg, fg, dim, parts) {
+  if (!parts || parts.length === 0) return null;
+  const sep = '\x1b[38;5;' + dim + 'm ' + PWL_CHEVRON + ' \x1b[38;5;' + fg + 'm';
+  const inner = parts.join(sep);
+  return {
+    bg,
+    text: '\x1b[48;5;' + bg + 'm\x1b[38;5;' + fg + 'm ' + inner + ' ',
+  };
+}
+
+function renderLine1(panels) {
+  const segs = [];
+  for (const p of panels) {
+    const seg = renderPanel(p.bg, p.fg, p.dim, p.parts);
+    if (seg) segs.push(seg);
+  }
+  return segs.length ? pwlJoin(segs) : '';
+}
+
 function renderPathSegment(cwd) {
   const segs = pathSegments(cwd);
   if (segs.length === 0) return null;
-  const bg = 24;     // dark teal-blue
-  const fg = 252;    // near-white
-  const dim = 110;   // muted blue-gray for chevrons
-  const sep = '\x1b[38;5;' + dim + 'm ' + PWL_CHEVRON + ' \x1b[38;5;' + fg + 'm';
-  const text = segs.join(sep);
-  return pwlSeg(bg, fg, text);
+  return renderPanel(24, 252, 110, segs);
 }
 
 function renderGitSegment(info) {
   if (!info) return null;
-  const fg = 232; // near-black, contrasts with the bright bgs below
   let bg;
-  if (info.detached) bg = 97;       // muted purple
+  if (info.detached) bg = 97;        // muted purple
   else if (info.dirty > 0) bg = 172; // amber
   else bg = 28;                      // green
   let text = PWL_BRANCH + ' ' + info.branch;
   if (info.dirty > 0) text += ' *' + info.dirty;
   if (info.ahead > 0) text += ' ↑' + info.ahead;
   if (info.behind > 0) text += ' ↓' + info.behind;
-  return pwlSeg(bg, fg, text);
+  return renderPanel(bg, 232, 232, [text]);
 }
 
 function renderLine2(cwd) {
@@ -170,16 +187,6 @@ function renderLine2(cwd) {
   const gitSeg = renderGitSegment(gitInfo(cwd));
   if (gitSeg) segments.push(gitSeg);
   return segments.length ? pwlJoin(segments) : '';
-}
-
-function renderLine1(parts) {
-  if (parts.length === 0) return '';
-  const bg = 235;   // very dark gray panel
-  const fg = 252;   // near-white for body text
-  const dim = 240;  // muted gray for chevrons
-  const sep = '\x1b[38;5;' + dim + 'm ' + PWL_CHEVRON + ' \x1b[38;5;' + fg + 'm';
-  const inner = parts.join(sep);
-  return pwlJoin([{ bg, text: '\x1b[48;5;' + bg + 'm\x1b[38;5;' + fg + 'm ' + inner + ' ' }]);
 }
 
 function formatTokens(n) {
