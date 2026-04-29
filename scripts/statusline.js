@@ -10,12 +10,16 @@ stdin.on('end', () => {
     const d = JSON.parse(input);
     const parts = [];
 
-    // Context window with colored bar
+    // Context window with colored bar, percentage, and total window size
     const ctx = d.context_window || {};
     if (ctx.used_percentage !== undefined) {
       const bar = progressBar(ctx.used_percentage);
       const pct = ctx.used_percentage.toFixed(1);
-      parts.push('ctx ' + bar + ' ' + pct + '%');
+      let seg = 'ctx ' + bar + ' ' + pct + '%';
+      if (ctx.context_window_size) {
+        seg += ' / ' + formatTokens(ctx.context_window_size);
+      }
+      parts.push(seg);
     }
 
     // Token totals (session aggregate)
@@ -64,13 +68,7 @@ stdin.on('end', () => {
     }
 
     const line1 = parts.join(' \x1b[90m│\x1b[0m ');
-    const line2Parts = [];
-    if (d.cwd) {
-      line2Parts.push('\x1b[36m' + shortenPath(d.cwd) + '\x1b[0m');
-      const git = gitInfo(d.cwd);
-      if (git) line2Parts.push(git);
-    }
-    const line2 = line2Parts.join(' ');
+    const line2 = renderLine2(d.cwd);
     stdout.write(line2 ? line1 + '\n' + line2 : line1);
   } catch (e) {
     stdout.write('statusline: ' + e.message);
@@ -94,17 +92,82 @@ function colorPct(pct) {
   return '\x1b[32m';
 }
 
-function shortenPath(p) {
-  // normalize to forward slashes
-  p = p.replace(/\\/g, '/');
+function pathSegments(cwd) {
+  let p = cwd.replace(/\\/g, '/');
   const home = (process.env.HOME || process.env.USERPROFILE || '').replace(/\\/g, '/');
+  let homeAlias = false;
   if (home && p.toLowerCase().startsWith(home.toLowerCase())) {
-    p = '~' + p.slice(home.length);
+    p = p.slice(home.length).replace(/^\/+/, '');
+    homeAlias = true;
   }
-  if (p.length > 32) {
-    p = '...' + p.slice(p.length - 29);
+  const segs = p.split('/').filter((s) => s.length > 0);
+  if (homeAlias) segs.unshift('~');
+  // Cap to first segment + last 2 to avoid runaway widths on deep trees.
+  if (segs.length > 4) {
+    return [segs[0], '…', segs[segs.length - 2], segs[segs.length - 1]];
   }
-  return p;
+  return segs;
+}
+
+// Powerline glyphs (require a Nerd Font / Powerline-patched font to render):
+//    right-pointing solid arrow (segment transition)
+//    right-pointing thin chevron (intra-segment separator)
+//    branch icon
+const PWL_ARROW = '';
+const PWL_CHEVRON = '';
+const PWL_BRANCH = '';
+
+function pwlSeg(bg, fg, text) {
+  return { bg, text: '\x1b[48;5;' + bg + 'm\x1b[38;5;' + fg + 'm ' + text + ' ' };
+}
+
+function pwlJoin(segments) {
+  let out = '';
+  for (let i = 0; i < segments.length; i++) {
+    out += segments[i].text;
+    const nextBg = i + 1 < segments.length ? segments[i + 1].bg : null;
+    if (nextBg !== null) {
+      out += '\x1b[48;5;' + nextBg + 'm\x1b[38;5;' + segments[i].bg + 'm' + PWL_ARROW;
+    } else {
+      out += '\x1b[49m\x1b[38;5;' + segments[i].bg + 'm' + PWL_ARROW + '\x1b[0m';
+    }
+  }
+  return out;
+}
+
+function renderPathSegment(cwd) {
+  const segs = pathSegments(cwd);
+  if (segs.length === 0) return null;
+  const bg = 24;     // dark teal-blue
+  const fg = 252;    // near-white
+  const dim = 110;   // muted blue-gray for chevrons
+  const sep = '\x1b[38;5;' + dim + 'm ' + PWL_CHEVRON + ' \x1b[38;5;' + fg + 'm';
+  const text = segs.join(sep);
+  return pwlSeg(bg, fg, text);
+}
+
+function renderGitSegment(info) {
+  if (!info) return null;
+  const fg = 232; // near-black, contrasts with the bright bgs below
+  let bg;
+  if (info.detached) bg = 97;       // muted purple
+  else if (info.dirty > 0) bg = 172; // amber
+  else bg = 28;                      // green
+  let text = PWL_BRANCH + ' ' + info.branch;
+  if (info.dirty > 0) text += ' *' + info.dirty;
+  if (info.ahead > 0) text += ' ↑' + info.ahead;
+  if (info.behind > 0) text += ' ↓' + info.behind;
+  return pwlSeg(bg, fg, text);
+}
+
+function renderLine2(cwd) {
+  if (!cwd) return '';
+  const segments = [];
+  const pathSeg = renderPathSegment(cwd);
+  if (pathSeg) segments.push(pathSeg);
+  const gitSeg = renderGitSegment(gitInfo(cwd));
+  if (gitSeg) segments.push(gitSeg);
+  return segments.length ? pwlJoin(segments) : '';
 }
 
 function formatTokens(n) {
@@ -146,13 +209,10 @@ function gitInfo(cwd) {
     }
   }
   if (!branch) return null;
+  let detached = false;
   if (branch === '(detached)') {
     branch = '@' + oid.slice(0, 7);
+    detached = true;
   }
-  const segs = [branch];
-  if (dirty > 0) segs.push('*' + dirty);
-  if (ahead > 0) segs.push('↑' + ahead);
-  if (behind > 0) segs.push('↓' + behind);
-  const color = dirty > 0 ? '\x1b[33m' : '\x1b[32m';
-  return color + segs.join(' ') + '\x1b[0m';
+  return { branch, dirty, ahead, behind, detached };
 }
