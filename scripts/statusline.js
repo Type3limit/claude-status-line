@@ -28,13 +28,17 @@ stdin.on('end', () => {
       parts.push(formatTokens(total));
     }
 
-    // Rate limits (only present on official Anthropic API)
+    // Rate limits (only present on official Anthropic API).
+    // Schema: rate_limits.five_hour.used_percentage / rate_limits.seven_day.used_percentage,
+    // either of which may be null when the data is unavailable.
     const rl = d.rate_limits || {};
-    if (rl['5h']) {
-      parts.push('5h:' + colorPct(rl['5h'].used_percentage) + rl['5h'].used_percentage.toFixed(0) + '%\x1b[0m');
+    const fiveHourPct = rl.five_hour && rl.five_hour.used_percentage;
+    if (typeof fiveHourPct === 'number') {
+      parts.push('5h:' + colorPct(fiveHourPct) + fiveHourPct.toFixed(0) + '%\x1b[0m');
     }
-    if (rl['7d']) {
-      parts.push('7d:' + colorPct(rl['7d'].used_percentage) + rl['7d'].used_percentage.toFixed(0) + '%\x1b[0m');
+    const sevenDayPct = rl.seven_day && rl.seven_day.used_percentage;
+    if (typeof sevenDayPct === 'number') {
+      parts.push('7d:' + colorPct(sevenDayPct) + sevenDayPct.toFixed(0) + '%\x1b[0m');
     }
 
     // Model name (handle both string and object forms)
