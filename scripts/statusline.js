@@ -54,14 +54,14 @@ function renderLine1(d) {
   const ctx = d.context_window || {};
   const rl = d.rate_limits || {};
 
-  if (ctx.used_percentage !== undefined) {
+  if (ctx.used_percentage != null) {
     const pct = ctx.used_percentage.toFixed(0);
     let val = '\u{1F4CA} ' + pct + '% ' + progressBar(ctx.used_percentage);
     if (ctx.context_window_size) val += ' ' + formatTokens(ctx.context_window_size);
     panels.push({ bg: BG.tok, fg: FG_CREAM, text: val });
   }
 
-  if (ctx.total_input_tokens !== undefined) {
+  if (ctx.total_input_tokens != null) {
     const total = (ctx.total_input_tokens || 0) + (ctx.total_output_tokens || 0);
     panels.push({ bg: BG.tot, fg: FG_CREAM, text: '\u{1F9EE} ' + formatTokens(total) });
   }
@@ -88,7 +88,7 @@ function renderLine1(d) {
     panels.push({ bg: BG.model, fg: FG_CREAM, text: '\u{1F916} ' + short });
   }
 
-  if (d.cost && d.cost.total_cost_usd !== undefined) {
+  if (d.cost && d.cost.total_cost_usd != null) {
     panels.push({ bg: BG.cost, fg: FG_DARK, text: '\u{1F4B5} $' + d.cost.total_cost_usd.toFixed(2) });
   }
 
