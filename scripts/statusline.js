@@ -9,11 +9,6 @@ stdin.on('end', () => {
     const d = JSON.parse(input);
     const parts = [];
 
-    // Working directory (shortened)
-    if (d.cwd) {
-      parts.push('\x1b[36m' + shortenPath(d.cwd) + '\x1b[0m');
-    }
-
     // Context window with colored bar
     const ctx = d.context_window || {};
     if (ctx.used_percentage !== undefined) {
@@ -67,7 +62,9 @@ stdin.on('end', () => {
       parts.push(d.effort.level);
     }
 
-    stdout.write(parts.join(' \x1b[90m│\x1b[0m '));
+    const line1 = parts.join(' \x1b[90m│\x1b[0m ');
+    const line2 = d.cwd ? '\x1b[36m' + shortenPath(d.cwd) + '\x1b[0m' : '';
+    stdout.write(line2 ? line1 + '\n' + line2 : line1);
   } catch (e) {
     stdout.write('statusline: ' + e.message);
   }
