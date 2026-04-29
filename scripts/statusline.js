@@ -34,11 +34,11 @@ stdin.on('end', () => {
     const rl = d.rate_limits || {};
     const fiveHourPct = rl.five_hour && rl.five_hour.used_percentage;
     if (typeof fiveHourPct === 'number') {
-      parts.push('5h:' + colorPct(fiveHourPct) + fiveHourPct.toFixed(0) + '%\x1b[0m');
+      parts.push(' ' + colorPct(fiveHourPct) + fiveHourPct.toFixed(0) + '%\x1b[39m');
     }
     const sevenDayPct = rl.seven_day && rl.seven_day.used_percentage;
     if (typeof sevenDayPct === 'number') {
-      parts.push('7d:' + colorPct(sevenDayPct) + sevenDayPct.toFixed(0) + '%\x1b[0m');
+      parts.push(' ' + colorPct(sevenDayPct) + sevenDayPct.toFixed(0) + '%\x1b[39m');
     }
 
     // Model name (handle both string and object forms)
@@ -57,17 +57,17 @@ stdin.on('end', () => {
       parts.push('$' + d.cost.total_cost_usd.toFixed(2));
     }
 
-    // Thinking indicator
+    // Thinking indicator (microchip glyph)
     if (d.thinking && d.thinking.enabled) {
-      parts.push('\x1b[35mthink\x1b[0m');
+      parts.push('\x1b[35m think\x1b[39m');
     }
 
-    // Effort level
+    // Effort level (bolt glyph)
     if (d.effort && d.effort.level) {
-      parts.push(d.effort.level);
+      parts.push('\x1b[33m\x1b[39m ' + d.effort.level);
     }
 
-    const line1 = parts.join(' \x1b[90m│\x1b[0m ');
+    const line1 = renderLine1(parts);
     const line2 = renderLine2(d.cwd);
     stdout.write(line2 ? line1 + '\n' + line2 : line1);
   } catch (e) {
@@ -83,7 +83,9 @@ function progressBar(pct) {
   if (pct > 80) color = '\x1b[31m';
   else if (pct > 50) color = '\x1b[33m';
   else color = '\x1b[32m';
-  return color + '[' + '█'.repeat(filled) + '░'.repeat(empty) + ']\x1b[0m';
+  // Use \x1b[39m (default fg) instead of \x1b[0m so we don't clobber a
+  // panel background applied by the caller.
+  return color + '[' + '█'.repeat(filled) + '░'.repeat(empty) + ']\x1b[39m';
 }
 
 function colorPct(pct) {
@@ -168,6 +170,16 @@ function renderLine2(cwd) {
   const gitSeg = renderGitSegment(gitInfo(cwd));
   if (gitSeg) segments.push(gitSeg);
   return segments.length ? pwlJoin(segments) : '';
+}
+
+function renderLine1(parts) {
+  if (parts.length === 0) return '';
+  const bg = 235;   // very dark gray panel
+  const fg = 252;   // near-white for body text
+  const dim = 240;  // muted gray for chevrons
+  const sep = '\x1b[38;5;' + dim + 'm ' + PWL_CHEVRON + ' \x1b[38;5;' + fg + 'm';
+  const inner = parts.join(sep);
+  return pwlJoin([{ bg, text: '\x1b[48;5;' + bg + 'm\x1b[38;5;' + fg + 'm ' + inner + ' ' }]);
 }
 
 function formatTokens(n) {

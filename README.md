@@ -1,29 +1,30 @@
 # Claude Status Line
 
-A Claude Code plugin that renders a two-line status bar: a metrics row (context window, tokens, rate limits, model, cost, thinking, effort) and a Powerline-styled path + git row.
+A Claude Code plugin that renders a two-line, Powerline-styled status bar: a session-metrics row (context window, tokens, rate limits, model, cost, thinking, effort) and a working-directory + git row.
 
 ## What it shows
 
+Both rows render as Powerline-style panels with chevron separators, color-coded values, and Nerd Font icons:
+
 ```
-ctx [████░░░░] 45.2% / 200k │ 265k │ 5h:43% │ 7d:85% │ opus-4-7 │ $4.12 │ think │ xhigh
+ ctx [████░░░░] 45.2% / 200k ›  265k ›   43% ›   85% ›  opus-4-7 ›  $4.12 ›   think ›    xhigh 
   ~  Code  my-app   main *3 ↑2
 ```
 
-### Line 1 — session metrics
+### Line 1 — session metrics (dark gray panel)
 
 | Segment | Description |
 |---------|-------------|
 | `ctx [████░░░░] 45.2% / 200k` | Context window usage: color-coded bar (green/yellow/red), percentage, and total window size |
 | `265k` | Total input + output tokens this session |
-| `5h:43%` / `7d:85%` | 5-hour / 7-day rate-limit usage (color-coded; only on the official Anthropic API) |
+| ` 43%` | 5-hour rate-limit usage, color-coded (only on the official Anthropic API) |
+| ` 85%` | 7-day rate-limit usage, color-coded (only on the official Anthropic API) |
 | `opus-4-7` | Shortened model name |
 | `$4.12` | Session cost in USD |
-| `think` | Thinking mode indicator (magenta) |
-| `xhigh` | Current effort level |
+| ` think` | Thinking mode indicator (magenta microchip) |
+| ` xhigh` | Current effort level (yellow bolt) |
 
-### Line 2 — working directory + git
-
-A Powerline-style row showing the current path with chevron-separated segments, followed by a git block when the directory is a repo:
+### Line 2 — working directory + git (blue + accent panels)
 
 | Block | Description |
 |-------|-------------|
@@ -56,4 +57,4 @@ Or run `/setup-statusline` after adding this plugin to Claude Code.
 ## Requirements
 
 - Node.js
-- A [Nerd Font](https://www.nerdfonts.com/) (or other Powerline-patched font) in your terminal — line 2 uses the Powerline glyphs ``, ``, and the branch icon ``. Without one, those slots render as boxes.
+- A [Nerd Font](https://www.nerdfonts.com/) in your terminal — both rows use Powerline arrows (``, ``) and Nerd Font icons (clock ``, calendar ``, microchip ``, bolt ``, branch ``). Without one, those slots render as boxes.
