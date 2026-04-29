@@ -1,49 +1,37 @@
 # Claude Status Line
 
-A Claude Code plugin that renders a two-line, Powerline-styled status bar: session metrics (context window, tokens, rate limits, model, cost, thinking, effort) on top, working directory + git on the bottom.
+A Claude Code plugin that renders a colorful, two-line Powerline status bar: per-metric session panels on top, project + git panels on the bottom.
 
 ## What it shows
 
-Three colored Powerline panels, each separated by  arrows. Per-metric icons use Unicode emoji (rendered by your OS's emoji font), so they show up even when other glyphs don't.
+Each metric is its own colored Powerline panel with an emoji icon, a short label, and the value. Empty metrics simply collapse, so you only ever see the panels you have data for.
 
 ```
- 📊 [████░░░░] 45.2% / 200k › 🧮 265k › 🕐 43% › 📅 85%   🤖 opus-4-7 › 💵 $4.12 › 🧠 think › ⚡ xhigh 
-  ~  Code  my-app   main *3 ↑2
+ 📊 Tok: 14% [=.........] 1.0M  🧮 Tot: 80k  🕐 5h: 68%  📅 7d: 33%  🤖 Model: opus-4-7  💵 Cost: $5.17  🧠 Status: Thinking  ⚡ Prio: High 
+ 📁 Project: multi-llm-agent-workflow  🌿 Git: main *1 ↑1 
 ```
 
-### Line 1 — two metric panels
+### Line 1 — session metrics
 
-**Panel A · deep teal-blue · context & limits**
+| Panel | Color | Description |
+|-------|-------|-------------|
+| `📊 Tok: 14% [=.........] 1.0M` | dark teal | Context window: percentage, color-coded bar (cyan/yellow/red), and total window size |
+| `🧮 Tot: 80k` | amber | Session total (input + output) tokens |
+| `🕐 5h: 68%` | dark green | 5-hour rate-limit usage (only on the official Anthropic API) |
+| `📅 7d: 33%` | medium green | 7-day rate-limit usage (only on the official Anthropic API) |
+| `🤖 Model: opus-4-7` | cyan | Shortened model name |
+| `💵 Cost: $5.17` | gold | Session cost in USD |
+| `🧠 Status: Thinking` | crimson | Shown only when extended thinking is on |
+| `⚡ Prio: High` | olive | Current effort level |
 
-| Segment | Description |
-|---------|-------------|
-| `📊 [████░░░░] 45.2% / 200k` | Context window usage: color-coded bar (green/yellow/red), percentage, and total window size |
-| `🧮 265k` | Total input + output tokens this session |
-| `🕐 43%` | 5-hour rate-limit usage, color-coded (only on the official Anthropic API) |
-| `📅 85%` | 7-day rate-limit usage, color-coded (only on the official Anthropic API) |
+### Line 2 — project + git
 
-**Panel B · deep purple · this session**
+| Panel | Color | Description |
+|-------|-------|-------------|
+| `📁 Project: <name>` | orange | Basename of the current working directory |
+| `🌿 Git: <branch> [*N ↑N ↓N]` | green / amber / purple | Branch with optional dirty count and ahead/behind markers; color flips amber when dirty and purple on detached HEAD |
 
-| Segment | Description |
-|---------|-------------|
-| `🤖 opus-4-7` | Shortened model name |
-| `💵 $4.12` | Session cost in USD |
-| `🧠 think` | Thinking mode indicator (magenta) |
-| `⚡ xhigh` | Current effort level |
-
-Each panel is rendered only when it has at least one populated segment, so users without rate-limit data, cost, or thinking simply see fewer parts.
-
-### Line 2 — working directory + git
-
-| Block | Description |
-|-------|-------------|
-| Path (blue) | Path segments joined with `` chevrons; deep paths collapse to `first › … › parent › leaf` |
-| Branch (green) | Clean working tree |
-| Branch (amber) | Dirty tree, suffixed with `*N` (modified/untracked file count) |
-| Branch (purple) | Detached HEAD, shown as `@<short-sha>` |
-| `↑N` / `↓N` | Commits ahead / behind upstream |
-
-Git data comes from a single `git status --porcelain=v2 --branch` call with a 500ms timeout; non-git directories silently render the path block alone.
+Git data comes from a single `git status --porcelain=v2 --branch` call with a 500ms timeout; non-git directories silently render only the project panel.
 
 ## Install
 
@@ -66,19 +54,19 @@ Or run `/setup-statusline` after adding this plugin to Claude Code.
 ## Requirements
 
 - Node.js (v18+ recommended).
-- A [Nerd Font](https://www.nerdfonts.com/) in your terminal for the Powerline arrows (``, ``) and the branch icon (``). Per-metric icons are emoji and don't need a Nerd Font.
+- A [Nerd Font](https://www.nerdfonts.com/) in your terminal for the Powerline arrow `` between panels. Per-metric icons are emoji and use the OS emoji-font fallback, so they render even without a Nerd Font.
 
 ## Troubleshooting
 
-### The arrows / branch icon show as boxes or `??`
+### The arrows show as boxes or `??` (e.g. in Windows Terminal)
 
-Your terminal isn't using a Nerd Font. The Powerline glyphs live in Unicode's Private Use Area (U+E0A0–U+E0BF), which is empty in most stock fonts.
+Your terminal isn't using a Nerd Font. The Powerline arrow lives in Unicode's Private Use Area (U+E0B0), which is empty in most stock fonts.
 
 **Windows Terminal**
 
-1. Pick a Nerd Font from <https://www.nerdfonts.com/font-downloads> — `JetBrainsMono Nerd Font`, `FiraCode Nerd Font`, and `CaskaydiaCove Nerd Font` are all good choices.
-2. Download the font's ZIP, extract it, then for each `.ttf` file: right-click → **Install for all users**.
-3. Open Windows Terminal → **Ctrl+,** → select your profile (or *Defaults* to apply globally) → **Appearance** → **Font face** → choose the Nerd Font (e.g. `JetBrainsMono Nerd Font`).
+1. Pick a Nerd Font from <https://www.nerdfonts.com/font-downloads> — `JetBrainsMono Nerd Font`, `FiraCode Nerd Font`, and `CaskaydiaCove Nerd Font` are good defaults.
+2. Download the font's ZIP, extract, and for each `.ttf` file: right-click → **Install for all users**.
+3. Open Windows Terminal → **Ctrl+,** → select your profile (or *Defaults* to apply globally) → **Appearance** → **Font face** → choose the Nerd Font.
 4. Save and reopen the terminal. The arrows should now render correctly.
 
 **macOS Terminal / iTerm2 / Alacritty / WezTerm / VS Code**
@@ -87,4 +75,4 @@ Same idea — install a Nerd Font system-wide and set it as your terminal's font
 
 ### Emoji render as monochrome boxes
 
-Your terminal lacks an emoji font fallback. On Windows Terminal this is rare (Segoe UI Emoji is bundled), but on minimal Linux containers you may need to install `fonts-noto-color-emoji` or similar.
+Your terminal lacks an emoji font fallback. On Windows Terminal this is rare (Segoe UI Emoji is bundled). On minimal Linux containers, install something like `fonts-noto-color-emoji`.
