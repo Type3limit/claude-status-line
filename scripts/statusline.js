@@ -1,5 +1,6 @@
 // Claude Code status line — context window, tokens, cost, model, thinking, effort
 const { stdin, stdout } = process;
+const { execFileSync } = require('child_process');
 let input = '';
 
 stdin.setEncoding('utf8');
@@ -63,7 +64,13 @@ stdin.on('end', () => {
     }
 
     const line1 = parts.join(' \x1b[90m│\x1b[0m ');
-    const line2 = d.cwd ? '\x1b[36m' + shortenPath(d.cwd) + '\x1b[0m' : '';
+    const line2Parts = [];
+    if (d.cwd) {
+      line2Parts.push('\x1b[36m' + shortenPath(d.cwd) + '\x1b[0m');
+      const git = gitInfo(d.cwd);
+      if (git) line2Parts.push(git);
+    }
+    const line2 = line2Parts.join(' ');
     stdout.write(line2 ? line1 + '\n' + line2 : line1);
   } catch (e) {
     stdout.write('statusline: ' + e.message);
@@ -105,4 +112,47 @@ function formatTokens(n) {
   if (n >= 10_000) return (n / 1_000).toFixed(0) + 'k';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
   return String(n);
+}
+
+function gitInfo(cwd) {
+  let out;
+  try {
+    out = execFileSync('git', ['status', '--porcelain=v2', '--branch'], {
+      cwd,
+      timeout: 500,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+    });
+  } catch (_) {
+    return null;
+  }
+  let branch = '';
+  let oid = '';
+  let ahead = 0;
+  let behind = 0;
+  let dirty = 0;
+  for (const line of out.split('\n')) {
+    if (!line) continue;
+    if (line.startsWith('# branch.head ')) {
+      branch = line.slice(14);
+    } else if (line.startsWith('# branch.oid ')) {
+      oid = line.slice(13);
+    } else if (line.startsWith('# branch.ab ')) {
+      const m = line.match(/\+(\d+) -(\d+)/);
+      if (m) { ahead = +m[1]; behind = +m[2]; }
+    } else if (line[0] !== '#') {
+      dirty++;
+    }
+  }
+  if (!branch) return null;
+  if (branch === '(detached)') {
+    branch = '@' + oid.slice(0, 7);
+  }
+  const segs = [branch];
+  if (dirty > 0) segs.push('*' + dirty);
+  if (ahead > 0) segs.push('↑' + ahead);
+  if (behind > 0) segs.push('↓' + behind);
+  const color = dirty > 0 ? '\x1b[33m' : '\x1b[32m';
+  return color + segs.join(' ') + '\x1b[0m';
 }
